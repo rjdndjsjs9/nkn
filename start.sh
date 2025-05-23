@@ -10,11 +10,12 @@ echo "[$(date)] Starting VPS initialization..."
 
 # Start SSH service
 echo "Starting SSH server..."
-service ssh start
+service ssh restart
 
 # Verify SSH is running
 if ! pgrep sshd >/dev/null; then
     echo "ERROR: SSH server failed to start!"
+    service ssh status
     exit 1
 fi
 
@@ -24,13 +25,20 @@ su - $USER -c "ngrok tcp 22 --log=stdout --config=/home/$USER/.ngrok2/ngrok.yml"
 
 # Wait for ngrok to initialize
 echo "Waiting for ngrok to initialize..."
-sleep 5
+for i in {1..10}; do
+    if grep -q "started tunnel" /var/log/ngrok.log; then
+        break
+    fi
+    sleep 3
+done
 
 # Get ngrok URL
 NGROK_URL=$(grep -o "url=tcp://[^ ]*" /var/log/ngrok.log | cut -d'=' -f2 || true)
 
 if [ -z "$NGROK_URL" ]; then
-    echo "WARNING: Failed to get ngrok URL"
+    echo "ERROR: Failed to establish ngrok tunnel!"
+    echo "Ngrok log:"
+    cat /var/log/ngrok.log
 else
     echo "============================================"
     echo "Ngrok tunnel established!"
@@ -40,22 +48,5 @@ else
     echo "============================================"
 fi
 
-# Continuous health monitoring
-echo "Starting health monitoring..."
-while true; do
-    # Verify SSH is still running
-    if ! pgrep sshd >/dev/null; then
-        echo "ERROR: SSH server stopped unexpectedly!"
-        service ssh start
-    fi
-    
-    # Verify ngrok is still running if URL was obtained
-    if [ -n "$NGROK_URL" ] && ! pgrep ngrok >/dev/null; then
-        echo "WARNING: ngrok tunnel stopped, restarting..."
-        su - $USER -c "ngrok tcp 22 --log=stdout --config=/home/$USER/.ngrok2/ngrok.yml" > /var/log/ngrok.log 2>&1 &
-        sleep 5
-        NGROK_URL=$(grep -o "url=tcp://[^ ]*" /var/log/ngrok.log | cut -d'=' -f2 || true)
-    fi
-    
-    sleep 30
-done
+# Keep container running
+tail -f /dev/null
