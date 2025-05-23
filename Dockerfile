@@ -33,13 +33,11 @@ RUN wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
     rm ngrok.tgz && \
     chmod +x /usr/local/bin/ngrok
 
-# Create ngrok config using printf for reliable formatting
+# Create validated ngrok config
 RUN mkdir -p /home/$USER/.config/ngrok && \
     printf "version: \"2\"\nauthtoken: \"%s\"\nregion: us\ntunnels:\n  ssh:\n    proto: tcp\n    addr: 22\n" "$NGROK_TOKEN" > /home/$USER/.config/ngrok/ngrok.yml && \
-    chown -R $USER:$USER /home/$USER/.config
-
-# Verify config syntax before proceeding
-RUN su - $USER -c "ngrok config check" || { echo "Invalid ngrok configuration"; cat /home/$USER/.config/ngrok/ngrok.yml; exit 1; }
+    chown -R $USER:$USER /home/$USER/.config && \
+    su - $USER -c "ngrok config check"
 
 # Copy startup script
 COPY start.sh /start.sh
