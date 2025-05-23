@@ -1,5 +1,5 @@
-# Use Ubuntu 22.04 with verified checksum
-FROM ubuntu:22.04@sha256:6120be6a2b7ce665d0cbddc7294c794d5b3b4fbb8efdb8a3aa8fbc9b2b5a2b1c
+# Use official Ubuntu 22.04 image (without pinned SHA256)
+FROM ubuntu:22.04
 
 # Set environment variables
 ENV USER=morningstar
@@ -22,15 +22,20 @@ RUN apt-get update && \
 # Configure SSH securely
 RUN mkdir -p /var/run/sshd && \
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+    sed -i 's/#PermitRootLogin prohibit-ssh/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    echo "AllowUsers $USER" >> /etc/ssh/sshd_config
 
 # Create user
 RUN useradd -m -s /bin/bash $USER && \
     echo "$USER:$VPS_PASSWORD" | chpasswd && \
-    usermod -aG sudo $USER
+    usermod -aG sudo $USER && \
+    echo "$USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/$USER
 
-# Install ngrok with verification
-RUN wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz && \
+# Install ngrok with fallback URL
+RUN { \
+    wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz || \
+    wget -q https://dl.ngrok.com/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz; \
+    } && \
     tar xzf ngrok.tgz -C /usr/local/bin && \
     rm ngrok.tgz && \
     chmod +x /usr/local/bin/ngrok
@@ -44,11 +49,6 @@ RUN mkdir -p /home/$USER/.ngrok2 && \
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD netstat -tuln | grep -q ':22 ' || exit 1
-
 EXPOSE 22
 
-# Use exec form for better signal handling
 CMD ["/start.sh"]
