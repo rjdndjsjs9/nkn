@@ -12,8 +12,8 @@ This Docker setup creates an Ubuntu-based VPS with SSH access through Ngrok tunn
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/your-repo/ubuntu-vps-docker.git
-   cd ubuntu-vps-docker
+   git clone https://github.com/Notookk/vps-ubuntu.git
+   cd vps-ubuntu
 Build the Docker image:
 
 bash
