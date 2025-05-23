@@ -2,50 +2,54 @@
 set -euo pipefail
 
 # Initialize logging
-mkdir -p /var/log/vps
-exec > >(tee -a /var/log/vps/startup.log)
+exec > >(tee /var/log/startup.log)
 exec 2>&1
 
 echo "[$(date)] Starting VPS initialization..."
 
-# Start SSH service
+# Start SSH
 echo "Starting SSH server..."
-service ssh restart
+service ssh start
 
-# Verify SSH is running
+# Verify SSH
 if ! pgrep sshd >/dev/null; then
-    echo "ERROR: SSH server failed to start!"
-    service ssh status
+    echo "ERROR: SSH failed to start!"
     exit 1
 fi
 
-# Start ngrok tunnel
+# Start ngrok with proper config path
 echo "Starting ngrok tunnel..."
-su - $USER -c "ngrok tcp 22 --log=stdout --config=/home/$USER/.ngrok2/ngrok.yml" > /var/log/ngrok.log 2>&1 &
+su - $USER -c "ngrok start --all --config=/home/$USER/.config/ngrok/ngrok.yml" > /var/log/ngrok.log 2>&1 &
 
-# Wait for ngrok to initialize
-echo "Waiting for ngrok to initialize..."
-for i in {1..10}; do
-    if grep -q "started tunnel" /var/log/ngrok.log; then
+# Wait for tunnel with timeout
+echo "Waiting for tunnel establishment..."
+for i in {1..30}; do
+    if curl -s http://localhost:4040/api/tunnels | jq -e '.tunnels[] | select(.proto == "tcp")' >/dev/null; then
+        NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | select(.proto == "tcp") | .public_url')
         break
     fi
-    sleep 3
+    sleep 1
 done
 
-# Get ngrok URL
-NGROK_URL=$(grep -o "url=tcp://[^ ]*" /var/log/ngrok.log | cut -d'=' -f2 || true)
-
-if [ -z "$NGROK_URL" ]; then
-    echo "ERROR: Failed to establish ngrok tunnel!"
-    echo "Ngrok log:"
-    cat /var/log/ngrok.log
+# Display connection info
+if [ -n "$NGROK_URL" ]; then
+    echo "========================================"
+    echo " Ngrok Tunnel Established!"
+    echo " URL: $NGROK_URL"
+    echo " Connect using:"
+    echo " ssh $USER@$(echo $NGROK_URL | cut -d':' -f2 | sed 's/\/\///') -p $(echo $NGROK_URL | cut -d':' -f3)"
+    echo " Password: $VPS_PASSWORD"
+    echo "========================================"
 else
-    echo "============================================"
-    echo "Ngrok tunnel established!"
-    echo "Connect using:"
-    echo "ssh $USER@$(echo $NGROK_URL | cut -d':' -f2 | sed 's/\/\///') -p $(echo $NGROK_URL | cut -d':' -f3)"
-    echo "Password: $VPS_PASSWORD"
-    echo "============================================"
+    echo "ERROR: Failed to establish ngrok tunnel!"
+    echo "Possible reasons:"
+    echo "1. Invalid ngrok token"
+    echo "2. Network connectivity issues"
+    echo "3. Ngrok service outage"
+    echo ""
+    echo "Debug information:"
+    cat /var/log/ngrok.log
+    exit 1
 fi
 
 # Keep container running
