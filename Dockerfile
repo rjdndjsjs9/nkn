@@ -1,26 +1,30 @@
 FROM ubuntu:22.04
 
-# Set your Termius credentials
+# Hardcoded Termius credentials (no variables needed)
 ENV USER=morningstar
 ENV PASSWORD=morningstar123
 
-# Install SSH and dependencies
-RUN apt-get update && apt-get install -y \
+# Install SSH with automatic yes to prompts
+RUN apt-get update -yq && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -yq \
     openssh-server \
     openssh-client \
-    curl \
-    && apt-get clean
+    curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Configure SSH
-RUN mkdir /run/sshd && \
+# Configure SSH securely
+RUN mkdir -p /run/sshd && \
     echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
-    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
 
-# Create user with your Termius password
+# Create user with password
 RUN useradd -m -s /bin/bash $USER && \
-    echo "$USER:$PASSWORD" | chpasswd
+    echo "$USER:$PASSWORD" | chpasswd && \
+    chown -R $USER:$USER /home/$USER
 
-# Copy the startup script
+# Copy autoconnect script
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
 
