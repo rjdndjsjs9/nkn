@@ -1,9 +1,13 @@
 #!/bin/bash
 set -eo pipefail
 
-# Verify ngrok config
-echo "Verifying ngrok configuration..."
-su - $USER -c "ngrok config check"
+# Verify config exists and is valid
+if ! su - $USER -c "ngrok config check"; then
+    echo "ERROR: Invalid ngrok configuration"
+    echo "=== Config File ==="
+    cat /home/$USER/.config/ngrok/ngrok.yml
+    exit 1
+fi
 
 # Start SSH
 service ssh start
@@ -29,8 +33,6 @@ if [ -z "$NGROK_URL" ]; then
     echo "ERROR: Failed to establish ngrok tunnel!"
     echo "=== Ngrok Log ==="
     cat /var/log/ngrok.log
-    echo "=== Config Content ==="
-    cat /home/$USER/.config/ngrok/ngrok.yml
     exit 1
 fi
 
