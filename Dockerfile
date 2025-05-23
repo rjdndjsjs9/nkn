@@ -27,20 +27,19 @@ RUN useradd -m -s /bin/bash $USER && \
     echo "$USER:$PASSWORD" | chpasswd && \
     usermod -aG sudo $USER
 
-# Install ngrok with verification
+# Install ngrok
 RUN wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz && \
     tar xzf ngrok.tgz -C /usr/local/bin && \
     rm ngrok.tgz && \
-    chmod +x /usr/local/bin/ngrok && \
-    ngrok version
+    chmod +x /usr/local/bin/ngrok
 
-# Create PROPER ngrok config with version number
+# Create ngrok config using printf for reliable formatting
 RUN mkdir -p /home/$USER/.config/ngrok && \
-    echo -e "version: \"2\"\nauthtoken: \"$NGROK_TOKEN\"\nregion: us\ntunnels:\n  ssh:\n    proto: tcp\n    addr: 22" > /home/$USER/.config/ngrok/ngrok.yml && \
+    printf "version: \"2\"\nauthtoken: \"%s\"\nregion: us\ntunnels:\n  ssh:\n    proto: tcp\n    addr: 22\n" "$NGROK_TOKEN" > /home/$USER/.config/ngrok/ngrok.yml && \
     chown -R $USER:$USER /home/$USER/.config
 
-# Verify config syntax
-RUN su - $USER -c "ngrok config check"
+# Verify config syntax before proceeding
+RUN su - $USER -c "ngrok config check" || { echo "Invalid ngrok configuration"; cat /home/$USER/.config/ngrok/ngrok.yml; exit 1; }
 
 # Copy startup script
 COPY start.sh /start.sh
