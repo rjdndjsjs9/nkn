@@ -5,7 +5,7 @@ ENV USER=morningstar
 ENV PASSWORD=morningstar123
 ARG NGROK_TOKEN
 
-# Install dependencies with proper cleanup
+# Install dependencies
 RUN apt-get update -q && \
     apt-get install -y --no-install-recommends \
         openssh-server \
@@ -13,11 +13,11 @@ RUN apt-get update -q && \
         unzip \
         curl \
         jq \
-        ca-certificates && \
+        net-tools && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure SSH securely
+# Configure SSH
 RUN mkdir -p /run/sshd && \
     echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
@@ -27,26 +27,12 @@ RUN useradd -m -s /bin/bash $USER && \
     echo "$USER:$PASSWORD" | chpasswd && \
     usermod -aG sudo $USER
 
-# Install ngrok with multiple fallback sources and verification
-RUN set -e; \
-    for url in \
-        "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz" \
-        "https://dl.ngrok.com/ngrok-v3-stable-linux-amd64.tgz"; \
-    do \
-        echo "Trying download from: $url"; \
-        if wget --no-check-certificate -q "$url" -O ngrok.tgz; then \
-            if tar xzf ngrok.tgz -C /usr/local/bin; then \
-                rm ngrok.tgz; \
-                chmod +x /usr/local/bin/ngrok; \
-                if ngrok version; then \
-                    echo "Ngrok installed successfully"; \
-                    break; \
-                fi; \
-            fi; \
-        fi; \
-        rm -f ngrok.tgz; \
-        echo "Download failed, trying next mirror..."; \
-    done || { echo "All download attempts failed"; exit 5; }
+# Install ngrok with verification
+RUN wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz -O ngrok.tgz && \
+    tar xzf ngrok.tgz -C /usr/local/bin && \
+    rm ngrok.tgz && \
+    chmod +x /usr/local/bin/ngrok && \
+    ngrok version
 
 # Configure ngrok
 RUN mkdir -p /home/$USER/.config/ngrok && \
