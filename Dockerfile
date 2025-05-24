@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
 
-# Hardcoded Termius credentials (no variables needed)
+# Hardcoded credentials
 ENV USER=morningstar
 ENV PASSWORD=morningstar123
 
@@ -14,8 +14,10 @@ RUN apt-get update -yq && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Configure SSH securely
+# Prepare SSH configuration
 RUN mkdir -p /run/sshd && \
+    # Remove any existing PasswordAuthentication lines
+    sed -i '/PasswordAuthentication/d' /etc/ssh/sshd_config && \
     echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
     echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
     echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
@@ -24,13 +26,15 @@ RUN mkdir -p /run/sshd && \
 RUN useradd -m -s /bin/bash $USER && \
     echo "$USER:$PASSWORD" | chpasswd && \
     usermod -aG sudo $USER && \
-    chown -R $USER:$USER /home/$USER
+    chown -R $USER:$USER /home/$USER && \
+    echo "$USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Copy autoconnect script and set permissions
+# Copy autoconnect/start script (if you have one)
 COPY start.sh /start.sh
 RUN chmod +x /start.sh && chown $USER:$USER /start.sh
 
-USER morningstar
-
+# Expose SSH port
 EXPOSE 22
+
+# Start SSH daemon
 CMD ["/start.sh"]
