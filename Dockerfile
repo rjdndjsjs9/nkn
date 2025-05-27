@@ -1,24 +1,19 @@
 FROM ubuntu:latest
 
-ENV Password=76mantap
-
-# Install SSH dan dependensi
-RUN apt update && apt install -y openssh-server wget curl unzip && \
-    echo "root:${Password}" | chpasswd && \
-    mkdir -p /run/sshd
+# Install packages
+RUN apt update && apt install -y wget curl sudo openssh-server ttyd
 
 # Konfigurasi SSH
-RUN echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
-    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+RUN mkdir /var/run/sshd && \
+    echo 'root:76mantap' | chpasswd && \
+    sed -i 's/#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Install cloudflared
-RUN wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared && \
-    chmod +x /usr/local/bin/cloudflared
+# Buat script startup
+RUN echo '#!/bin/bash\n\
+service ssh start\n\
+ttyd -p 7681 ssh root@localhost\n' > /start.sh && chmod +x /start.sh
 
-# Copy start script
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
-EXPOSE 22
+EXPOSE 22 7681
 
 CMD ["/start.sh"]
