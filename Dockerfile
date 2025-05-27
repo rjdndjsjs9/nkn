@@ -1,20 +1,35 @@
 FROM ubuntu:latest
-RUN apt update -y > /dev/null 2>&1 && apt upgrade -y > /dev/null 2>&1 && apt install locales -y \
-&& localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
-ENV LANG en_US.utf8
+
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
 ENV Password=76mantap
 ENV ngrokid=2xfeeDPiKN0W2NM3itCBX5ij873_4ZqTvbs78hFEHzex7BnGG
-RUN apt install ssh wget unzip -y > /dev/null 2>&1
-RUN wget -O ngrok.zip https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip > /dev/null 2>&1
-RUN unzip ngrok.zip
-RUN echo "./ngrok config add-authtoken ${ngrokid} &&" >>/1.sh
-RUN echo "./ngrok tcp 22 &>/dev/null &" >>/1.sh
-RUN mkdir /run/sshd
-RUN echo '/usr/sbin/sshd -D' >>/1.sh
-RUN echo 'PermitRootLogin yes' >>  /etc/ssh/sshd_config 
-RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
-RUN echo root:${Password}|chpasswd
-RUN service ssh start
-RUN chmod 755 /1.sh
-EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
-CMD  /1.sh
+
+# Update dan install dependensi
+RUN apt update -y && \
+    apt upgrade -y && \
+    apt install -y locales openssh-server wget unzip curl && \
+    locale-gen en_US.UTF-8
+
+# Setup SSH
+RUN mkdir -p /run/sshd && \
+    echo "PermitRootLogin yes" >> /etc/ssh/sshd_config && \
+    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo root:${Password} | chpasswd
+
+# Download ngrok
+RUN wget -q -O /ngrok.zip https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip && \
+    unzip -q /ngrok.zip -d /usr/local/bin && \
+    chmod +x /usr/local/bin/ngrok
+
+# Start script
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo "ngrok config add-authtoken ${ngrokid}" >> /start.sh && \
+    echo "/usr/sbin/sshd" >> /start.sh && \
+    echo "ngrok tcp 22" >> /start.sh && \
+    chmod +x /start.sh
+
+EXPOSE 22
+
+CMD ["/bin/bash", "/start.sh"]
