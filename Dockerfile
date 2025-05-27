@@ -1,40 +1,20 @@
-FROM ubuntu:22.04
-
-# Hardcoded credentials
-ENV USER=morningstar
-ENV PASSWORD=morningstar123
-
-# Install SSH and sudo, clean up after
-RUN apt-get update -yq && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -yq \
-    openssh-server \
-    openssh-client \
-    curl \
-    sudo && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Prepare SSH configuration
-RUN mkdir -p /run/sshd && \
-    # Remove any existing PasswordAuthentication lines
-    sed -i '/PasswordAuthentication/d' /etc/ssh/sshd_config && \
-    echo "PermitRootLogin no" >> /etc/ssh/sshd_config && \
-    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
-    echo "ClientAliveInterval 60" >> /etc/ssh/sshd_config
-
-# Create user with password and give sudo access
-RUN useradd -m -s /bin/bash $USER && \
-    echo "$USER:$PASSWORD" | chpasswd && \
-    usermod -aG sudo $USER && \
-    chown -R $USER:$USER /home/$USER && \
-    echo "$USER ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Copy autoconnect/start script (if you have one)
-COPY start.sh /start.sh
-RUN chmod +x /start.sh && chown $USER:$USER /start.sh
-
-# Expose SSH port
-EXPOSE 22
-
-# Start SSH daemon
-CMD ["/start.sh"]
+FROM ubuntu:latest
+RUN apt update -y > /dev/null 2>&1 && apt upgrade -y > /dev/null 2>&1 && apt install locales -y \
+&& localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8
+ENV LANG en_US.utf8
+ENV Password=76mantap
+ENV ngrokid=2xfeeDPiKN0W2NM3itCBX5ij873_4ZqTvbs78hFEHzex7BnGG
+RUN apt install ssh wget unzip -y > /dev/null 2>&1
+RUN wget -O ngrok.zip https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.zip > /dev/null 2>&1
+RUN unzip ngrok.zip
+RUN echo "./ngrok config add-authtoken ${ngrokid} &&" >>/1.sh
+RUN echo "./ngrok tcp 22 &>/dev/null &" >>/1.sh
+RUN mkdir /run/sshd
+RUN echo '/usr/sbin/sshd -D' >>/1.sh
+RUN echo 'PermitRootLogin yes' >>  /etc/ssh/sshd_config 
+RUN echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
+RUN echo root:${Password}|chpasswd
+RUN service ssh start
+RUN chmod 755 /1.sh
+EXPOSE 80 8888 8080 443 5130 5131 5132 5133 5134 5135 3306
+CMD  /1.sh
